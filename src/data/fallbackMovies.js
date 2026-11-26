@@ -1,0 +1,78 @@
+/**
+ * Offline fallback catalog using genuine TMDB IDs.
+ * Rendered only when the live Cineverse backend is unreachable.
+ */
+export const OFFLINE_FALLBACK_MOVIES = [
+  {
+    id: "tmdb-157336",
+    tmdbId: 157336,
+    title: "Interstellar",
+    year: "2014",
+    rating: "8.4",
+    runtime: "169 min",
+    genres: ["Sci-Fi", "Adventure", "Drama"],
+    director: "Christopher Nolan",
+    posterPath: "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
+    backdropPath: "/xJHokMbljvjADYdit5fK5VQsXEG.jpg",
+    poster: "https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg",
+    backdrop: "https://image.tmdb.org/t/p/w1280/xJHokMbljvjADYdit5fK5VQsXEG.jpg",
+    synopsis:
+      "When Earth begins to fail, a former pilot joins a daring mission beyond our galaxy to find a future for humanity.",
+    label: "THE HUMAN SPIRIT, INFINITELY",
+    isOfflineFallback: true,
+  },
+  {
+    id: "tmdb-693134",
+    tmdbId: 693134,
+    title: "Dune: Part Two",
+    year: "2024",
+    rating: "8.2",
+    runtime: "166 min",
+    genres: ["Sci-Fi", "Adventure"],
+    director: "Denis Villeneuve",
+    posterPath: "/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+    backdropPath: "/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
+    poster: "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+    backdrop: "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
+    synopsis:
+      "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
+    label: "FATE IS WRITTEN IN SAND",
+    isOfflineFallback: true,
+  },
+  {
+    id: "tmdb-335984",
+    tmdbId: 335984,
+    title: "Blade Runner 2049",
+    year: "2017",
+    rating: "7.6",
+    runtime: "164 min",
+    genres: ["Sci-Fi", "Drama"],
+    director: "Denis Villeneuve",
+    posterPath: "/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg",
+    backdropPath: "/sAtoMqDVhNDQBc3QJL3RF6hlhGq.jpg",
+    poster: "https://image.tmdb.org/t/p/w500/gajva2L0rPYkEWjzgFlBXCAVBE5.jpg",
+    backdrop: "https://image.tmdb.org/t/p/w1280/sAtoMqDVhNDQBc3QJL3RF6hlhGq.jpg",
+    synopsis:
+      "A young blade runner's discovery of a long-buried secret leads him to track down former blade runner Rick Deckard.",
+    label: "WHAT MAKES US HUMAN?",
+    isOfflineFallback: true,
+  },
+  {
+    id: "tmdb-27205",
+    tmdbId: 27205,
+    title: "Inception",
+    year: "2010",
+    rating: "8.4",
+    runtime: "148 min",
+    genres: ["Action", "Sci-Fi", "Adventure"],
+    director: "Christopher Nolan",
+    posterPath: "/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg",
+    backdropPath: "/s3TBrRGB1iav7gFOCNx3H31MoES.jpg",
+    poster: "https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg",
+    backdrop: "https://image.tmdb.org/t/p/w1280/s3TBrRGB1iav7gFOCNx3H31MoES.jpg",
+    synopsis:
+      "A thief who steals corporate secrets through dream-sharing technology is given the inverse task of planting an idea.",
+    label: "YOUR MIND IS THE SCENE",
+    isOfflineFallback: true,
+  },
+];
