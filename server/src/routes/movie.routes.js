@@ -15,6 +15,7 @@ import { validate } from "../middleware/validate.js";
 import { asyncHandler } from "../utils/AppError.js";
 import {
   discoverQuerySchema,
+  langQuerySchema,
   movieIdParamsSchema,
   pageQuerySchema,
   searchQuerySchema,
@@ -47,7 +48,11 @@ router.get(
   asyncHandler(listNowPlaying),
 );
 
-router.get("/genres", asyncHandler(listGenres));
+router.get(
+  "/genres",
+  validate({ query: langQuerySchema }),
+  asyncHandler(listGenres),
+);
 
 router.get(
   "/discover",
@@ -70,7 +75,7 @@ router.get(
 
 router.get(
   "/:id",
-  validate({ params: movieIdParamsSchema }),
+  validate({ params: movieIdParamsSchema, query: langQuerySchema }),
   asyncHandler(getDetails),
 );
 

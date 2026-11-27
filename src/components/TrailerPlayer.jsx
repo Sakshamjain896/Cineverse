@@ -60,13 +60,14 @@ function getPlayerErrorMessage(errorCode) {
   }
 }
 
-export default function TrailerPlayer({
+function TrailerPlayerInner({
   trailer,
-  title = "Movie trailer",
-  autoplay = false,
-  muted = false,
-  controls = true,
-  className = "",
+  videoKey,
+  title,
+  autoplay,
+  muted,
+  controls,
+  className,
 }) {
   const playerContainerRef = useRef(null);
   const playerRef = useRef(null);
@@ -75,18 +76,7 @@ export default function TrailerPlayer({
   const [playerError, setPlayerError] = useState("");
   const [isMuted, setIsMuted] = useState(muted);
 
-  const videoKey =
-    trailer?.site === "YouTube" &&
-    typeof trailer?.key === "string" &&
-    SAFE_YOUTUBE_KEY_RE.test(trailer.key)
-      ? trailer.key
-      : null;
-
   useEffect(() => {
-    setPlayerReady(false);
-    setPlayerError("");
-    setIsMuted(muted);
-
     if (!videoKey || !playerContainerRef.current) {
       return undefined;
     }
@@ -203,9 +193,9 @@ export default function TrailerPlayer({
     >
       <div className="relative aspect-video w-full">
         <div
-          ref={playerContainerRef}
-          className="absolute inset-0 h-full w-full"
-        />
+  ref={playerContainerRef}
+  className="absolute inset-0 h-full w-full [&>iframe]:!absolute [&>iframe]:!inset-0 [&>iframe]:!h-full [&>iframe]:!w-full"
+/>
 
         {!playerReady && !playerError && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#171719]">
@@ -273,5 +263,34 @@ export default function TrailerPlayer({
         </div>
       )}
     </section>
+  );
+}
+
+export default function TrailerPlayer({
+  trailer,
+  title = "Movie trailer",
+  autoplay = false,
+  muted = false,
+  controls = true,
+  className = "",
+}) {
+  const videoKey =
+    trailer?.site === "YouTube" &&
+    typeof trailer?.key === "string" &&
+    SAFE_YOUTUBE_KEY_RE.test(trailer.key)
+      ? trailer.key
+      : null;
+
+  return (
+    <TrailerPlayerInner
+      key={`${videoKey || "none"}-${autoplay}-${muted}-${controls}`}
+      trailer={trailer}
+      videoKey={videoKey}
+      title={title}
+      autoplay={autoplay}
+      muted={muted}
+      controls={controls}
+      className={className}
+    />
   );
 }

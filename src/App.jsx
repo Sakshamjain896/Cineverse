@@ -67,6 +67,8 @@ import {
   searchMovies,
 } from "./services/movieApi.js";
 import TrailerPlayer from "./components/TrailerPlayer.jsx";
+import { useLanguage } from "./hooks/useLanguage.js";
+import { supportedLanguages } from "./data/translations.js";
 
 const AuthPage = lazy(() => import("./components/AuthPage.jsx"));
 const ProfilePage = lazy(() => import("./components/ProfilePage.jsx"));
@@ -78,46 +80,65 @@ const MovieModal = lazy(() => import("./components/MovieModal.jsx"));
 
 const THEME_STORAGE_KEY = "cineverse-theme";
 
+const SPEECH_LOCALE_MAP = {
+  en: "en-IN",
+  hi: "hi-IN",
+  es: "es-ES",
+  fr: "fr-FR",
+  ja: "ja-JP",
+  ko: "ko-KR",
+};
+
 const DEFAULT_GENRE_PILLS = [
-  "All",
-  "Sci-Fi",
-  "Drama",
-  "Thriller",
-  "Action",
-  "Adventure",
-  "Mystery",
-  "Crime",
-  "Animation",
-  "Comedy",
+  { id: "All", name: "All" },
+  { id: 878, name: "Sci-Fi" },
+  { id: 18, name: "Drama" },
+  { id: 53, name: "Thriller" },
+  { id: 28, name: "Action" },
+  { id: 12, name: "Adventure" },
+  { id: 9648, name: "Mystery" },
+  { id: 80, name: "Crime" },
+  { id: 16, name: "Animation" },
+  { id: 35, name: "Comedy" },
 ];
 
 const MOODS = [
   {
     name: "Mind-bending",
+    labelKey: "moodMindBending",
+    descKey: "moodMindBendingDesc",
     description: "Stories that stay with you",
     genreIds: "878,9648",
     sortBy: "vote_average.desc",
   },
   {
     name: "Feel something",
+    labelKey: "moodFeelSomething",
+    descKey: "moodFeelSomethingDesc",
     description: "A little closer to the heart",
     genreIds: "18,10749",
     sortBy: "vote_average.desc",
   },
   {
     name: "Dark & intense",
+    labelKey: "moodDarkIntense",
+    descKey: "moodDarkIntenseDesc",
     description: "Enter the shadows",
     genreIds: "53,80",
     sortBy: "popularity.desc",
   },
   {
     name: "Big-screen spectacle",
+    labelKey: "moodSpectacle",
+    descKey: "moodSpectacleDesc",
     description: "Go wonderfully oversized",
     genreIds: "28,12",
     sortBy: "revenue.desc",
   },
   {
     name: "Easy watch",
+    labelKey: "moodEasyWatch",
+    descKey: "moodEasyWatchDesc",
     description: "Let the day slow down",
     genreIds: "35,16",
     sortBy: "popularity.desc",
@@ -387,6 +408,10 @@ function SearchBox({
   ariaLabel,
   className = "",
   autoFocus = false,
+  compact = false,
+  inputRef,
+  recentSearchesLabel = "Recent searches",
+  clearLabel = "Clear",
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -455,10 +480,18 @@ function SearchBox({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      <div className="cv-input flex h-12 w-full items-center gap-2 rounded-full px-3">
-        <Search size={17} className="cv-quiet-text ml-1 shrink-0" />
+      <div
+        className={`cv-input flex w-full items-center rounded-full ${
+          compact ? "h-10 gap-1 pl-3.5 pr-1" : "h-12 gap-2 px-3"
+        }`}
+      >
+        <Search
+          size={compact ? 16 : 17}
+          className={`cv-quiet-text shrink-0 ${compact ? "" : "ml-1"}`}
+        />
 
         <input
+          ref={inputRef}
           value={value}
           onChange={(event) => {
             onChange(event.target.value);
@@ -476,7 +509,9 @@ function SearchBox({
           aria-expanded={open && items.length > 0}
           aria-autocomplete="list"
           autoFocus={autoFocus}
-          className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          className={`min-w-0 flex-1 bg-transparent outline-none ${
+            compact ? "text-xs" : "text-sm"
+          }`}
         />
 
         {value && (
@@ -487,25 +522,31 @@ function SearchBox({
               onChange("");
             }}
             aria-label="Clear search"
-            className="cv-quiet-text grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10"
+            className={`cv-quiet-text grid shrink-0 place-items-center rounded-full hover:bg-white/10 ${
+              compact ? "h-7 w-7" : "h-8 w-8"
+            }`}
           >
-            <X size={15} />
+            <X size={compact ? 13 : 15} />
           </button>
         )}
 
-        <VoiceSearchButton status={voiceStatus} onClick={onVoiceSearch} />
+        <VoiceSearchButton
+          status={voiceStatus}
+          onClick={onVoiceSearch}
+          compact={compact}
+        />
       </div>
 
       {open && items.length > 0 && (
         <div
           role="listbox"
-          className="cv-theme-panel cv-panel-surface cv-hairline absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl"
+          className="cv-theme-panel cv-panel-surface cv-hairline absolute left-0 right-0 top-[calc(100%+8px)] z-50 min-w-[260px] overflow-hidden rounded-2xl border p-2 shadow-2xl backdrop-blur-2xl"
         >
           {!value.trim() && (
             <div className="flex items-center justify-between px-3 py-1.5">
               <span className="cv-quiet-text flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[.2em]">
                 <History size={11} />
-                Recent searches
+                {recentSearchesLabel}
               </span>
               <button
                 type="button"
@@ -516,7 +557,7 @@ function SearchBox({
                 }}
                 className="text-[11px] text-[#d9b77b] hover:underline"
               >
-                Clear
+                {clearLabel}
               </button>
             </div>
           )}
@@ -563,11 +604,18 @@ function SiteHeader({
   onAccount,
   search,
   onSearchChange,
+  onSelectSuggestion,
+  searchHistory,
+  searchSuggestions,
+  onClearHistory,
   onVoiceSearch,
   voiceStatus,
   isLoggedIn,
   watchlistCount,
   searchInputRef,
+  language,
+  setLanguage,
+  t,
 }) {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -600,7 +648,7 @@ function SiteHeader({
                 : "cv-quiet-text hover:text-current"
             }`}
           >
-            Home
+            {t("home")}
           </button>
 
           <button
@@ -613,7 +661,7 @@ function SiteHeader({
                 : "cv-quiet-text hover:text-current"
             }`}
           >
-            Discover
+            {t("discover")}
           </button>
 
           <button
@@ -628,7 +676,7 @@ function SiteHeader({
                 : "cv-quiet-text hover:text-current"
             }`}
           >
-            My watchlist
+            {t("myWatchlist")}
             {watchlistCount > 0 && (
               <span className="rounded-full bg-[#d9b77b]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#d9b77b]">
                 {watchlistCount}
@@ -639,36 +687,24 @@ function SiteHeader({
 
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Desktop search + microphone */}
-          <div className="cv-input hidden h-10 w-52 items-center gap-1 rounded-full pl-3.5 pr-1 lg:flex xl:w-64">
-            <Search size={16} className="cv-quiet-text shrink-0" />
-
-            <input
-              ref={searchInputRef}
-              aria-label="Search movies"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              onFocus={() => onNavigate("discover", false)}
-              placeholder="Find your next film..."
-              className="min-w-0 flex-1 bg-transparent text-xs outline-none"
-            />
-
-            {search && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={() => onSearchChange("")}
-                className="cv-quiet-text grid h-7 w-7 shrink-0 place-items-center"
-              >
-                <X size={13} />
-              </button>
-            )}
-
-            <VoiceSearchButton
-              status={voiceStatus}
-              onClick={onVoiceSearch}
-              compact
-            />
-          </div>
+          <SearchBox
+            compact
+            inputRef={searchInputRef}
+            value={search}
+            onChange={onSearchChange}
+            onFocus={() => onNavigate("discover", false)}
+            onSelectSuggestion={onSelectSuggestion}
+            history={searchHistory}
+            suggestions={searchSuggestions}
+            onClearHistory={onClearHistory}
+            onVoiceSearch={onVoiceSearch}
+            voiceStatus={voiceStatus}
+            placeholder={t("searchPlaceholder")}
+            ariaLabel="Search movies"
+            recentSearchesLabel={t("recentSearches")}
+            clearLabel={t("clear")}
+            className="hidden w-52 lg:block xl:w-64"
+          />
 
           {/* Mobile search toggle */}
           <button
@@ -683,6 +719,19 @@ function SiteHeader({
           >
             <Search size={18} />
           </button>
+
+          <select
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+            aria-label={t("language")}
+            className="cv-hairline cv-quiet-text h-9 max-w-[105px] rounded-lg border bg-transparent px-2 text-xs outline-none"
+          >
+            {supportedLanguages.map((item) => (
+              <option key={item.code} value={item.code} className="bg-[#171719] text-white">
+                {item.native}
+              </option>
+            ))}
+          </select>
 
           <button
             type="button"
@@ -742,7 +791,7 @@ function SiteHeader({
                     : "cv-quiet-text"
                 }`}
               >
-                Home
+                {t("home")}
               </button>
 
               <button
@@ -754,7 +803,7 @@ function SiteHeader({
                     : "cv-quiet-text"
                 }`}
               >
-                Discover
+                {t("discover")}
               </button>
 
               <button
@@ -766,7 +815,7 @@ function SiteHeader({
                     : "cv-quiet-text"
                 }`}
               >
-                <span>My watchlist</span>
+                <span>{t("myWatchlist")}</span>
                 {watchlistCount > 0 && (
                   <span className="rounded-full bg-[#d9b77b]/20 px-2 py-0.5 text-[11px] font-semibold text-[#d9b77b]">
                     {watchlistCount}
@@ -782,7 +831,7 @@ function SiteHeader({
                 }}
                 className="cv-quiet-text rounded-xl px-3 py-2.5 text-left text-sm"
               >
-                {isLoggedIn ? "Account & profile" : "Sign in / Create account"}
+                {isLoggedIn ? t("accountProfile") : t("signInSignUp")}
               </button>
             </div>
           </motion.nav>
@@ -805,7 +854,7 @@ function SiteHeader({
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
                 onFocus={() => onNavigate("discover", false)}
-                placeholder="Search films, titles..."
+                placeholder={t("search")}
                 aria-label="Search movies mobile"
                 className="min-w-0 flex-1 bg-transparent text-sm outline-none"
                 autoFocus
@@ -938,6 +987,9 @@ function MovieCard({
   isSaved,
   onToggleSave,
   index = 0,
+  language = "en",
+  genreNameById,
+  moreDetailsLabel = "More details",
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const [previewActive, setPreviewActive] = useState(false);
@@ -948,6 +1000,9 @@ function MovieCard({
   const requestControllerRef = useRef(null);
 
   const posterSrcSet = buildPosterSrcSet(movie.poster);
+  const localizedGenre =
+    (movie.genreIds?.[0] && genreNameById?.get(movie.genreIds[0])) ||
+    movie.genres?.[0];
 
   const isHoverDevice =
     typeof window !== "undefined" &&
@@ -975,6 +1030,7 @@ function MovieCard({
       const details = await getMovieDetails(
         movie.tmdbId,
         controller.signal,
+        language,
       );
 
       if (!controller.signal.aborted) {
@@ -992,7 +1048,7 @@ function MovieCard({
         setPreviewLoading(false);
       }
     }
-  }, [movie, previewActive]);
+  }, [movie, previewActive, language]);
 
   // Desktop: activate preview after a 700ms hover.
   const startPreview = useCallback(() => {
@@ -1164,10 +1220,10 @@ function MovieCard({
           <div className="mt-1 flex items-center gap-2 text-[11px] text-white/70">
             <span>{movie.year}</span>
 
-            {movie.genres?.[0] && (
+            {localizedGenre && (
               <>
                 <span>•</span>
-                <span>{movie.genres[0]}</span>
+                <span>{localizedGenre}</span>
               </>
             )}
           </div>
@@ -1218,7 +1274,7 @@ function MovieCard({
             className="absolute bottom-4 right-4 z-40 flex h-9 items-center justify-center gap-2 rounded-lg bg-white px-3 text-xs font-semibold text-black transition hover:bg-[#d9b77b]"
           >
             <Play size={12} fill="currentColor" />
-            More details
+            {moreDetailsLabel}
           </button>
         )}
       </motion.div>
@@ -1241,6 +1297,9 @@ function MovieRow({
   onToggleSave,
   onAction,
   action = "Explore collection",
+  language = "en",
+  genreNameById,
+  moreDetailsLabel,
 }) {
   if (!loading && !movies.length) return null;
 
@@ -1265,6 +1324,9 @@ function MovieRow({
               onOpen={onOpen}
               isSaved={isMovieSaved(movie)}
               onToggleSave={onToggleSave}
+              language={language}
+              genreNameById={genreNameById}
+              moreDetailsLabel={moreDetailsLabel}
             />
           ))}
         </div>
@@ -1277,7 +1339,13 @@ function MovieRow({
    HERO CAROUSEL
 -------------------------------------------------- */
 
-function HeroCarousel({ movies = [], loading = false, onOpenMovie, onDiscover }) {
+function HeroCarousel({
+  movies = [],
+  loading = false,
+  onOpenMovie,
+  onDiscover,
+  t,
+}) {
   const heroMovies = useMemo(() => movies.slice(0, 5), [movies]);
   const [heroIndex, setHeroIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -1369,7 +1437,7 @@ function HeroCarousel({ movies = [], loading = false, onOpenMovie, onDiscover })
             <div className="mb-5 flex items-center gap-3">
               <span className="h-px w-8 bg-[#d9b77b]" />
               <span className="text-[10px] font-semibold uppercase tracking-[.32em] text-[#f0d6a3]">
-                THE CINEVERSE EDIT
+                {t("theEdit")}
               </span>
             </div>
 
@@ -1411,7 +1479,7 @@ function HeroCarousel({ movies = [], loading = false, onOpenMovie, onDiscover })
                 className="cv-gold-button group flex h-12 items-center gap-3 rounded-full px-6 text-sm font-semibold transition hover:bg-[#f0d6a3]"
               >
                 <Play size={14} fill="currentColor" />
-                Explore film
+                {t("exploreFilm")}
                 <ArrowRight
                   size={15}
                   className="transition-transform group-hover:translate-x-1"
@@ -1424,7 +1492,7 @@ function HeroCarousel({ movies = [], loading = false, onOpenMovie, onDiscover })
                 className="flex h-12 items-center gap-2 rounded-full border border-white/25 bg-white/[.04] px-5 text-sm text-white backdrop-blur-md transition hover:border-white/50 hover:bg-white/10"
               >
                 <Compass size={15} />
-                Discover more
+                {t("discoverMore")}
               </button>
             </div>
           </motion.div>
@@ -1468,7 +1536,7 @@ function HeroCarousel({ movies = [], loading = false, onOpenMovie, onDiscover })
           onClick={onDiscover}
           className="hidden items-center gap-2 text-[10px] uppercase tracking-[.2em] text-white/60 transition hover:text-white sm:flex"
         >
-          Scroll to explore <ArrowDown size={13} />
+          {t("scrollToExplore")} <ArrowDown size={13} />
         </button>
       </div>
     </section>
@@ -1479,13 +1547,13 @@ function HeroCarousel({ movies = [], loading = false, onOpenMovie, onDiscover })
    MOOD EXPLORER
 -------------------------------------------------- */
 
-function MoodExplorer({ activeMood, onSelectMood }) {
+function MoodExplorer({ activeMood, onSelectMood, t }) {
   return (
     <section className="mb-16">
       <SectionHeading
-        eyebrow="A feeling, not a filter"
-        title="What are you in the mood for?"
-        subtitle="Pick the feeling. We'll handle the opening credits."
+        eyebrow={t("moodEyebrow")}
+        title={t("moodTitle")}
+        subtitle={t("moodSubtitle")}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -1523,10 +1591,12 @@ function MoodExplorer({ activeMood, onSelectMood }) {
                 )}
               </span>
 
-              <span className="block text-sm font-semibold">{mood.name}</span>
+              <span className="block text-sm font-semibold">
+                {t(mood.labelKey)}
+              </span>
 
               <span className="cv-quiet-text mt-1 block text-xs">
-                {mood.description}
+                {t(mood.descKey)}
               </span>
 
               {active && (
@@ -1556,10 +1626,6 @@ function DiscoverPage({
   totalResults,
   genresList,
   search,
-  onSearchChange,
-  onSelectSuggestion,
-  searchHistory,
-  onClearHistory,
   activeGenre,
   onGenreChange,
   activeMood,
@@ -1570,72 +1636,60 @@ function DiscoverPage({
   onClearFilters,
   onLoadMore,
   onRetry,
-  onVoiceSearch,
-  voiceStatus,
+  language,
+  genreNameById,
+  t,
 }) {
   return (
     <section
       id="discover"
       className="mx-auto min-h-[75vh] max-w-[1440px] scroll-mt-24 px-5 py-12 sm:px-8 sm:py-16 lg:px-12"
     >
-      <div className="mb-10 flex flex-col justify-between gap-7 md:flex-row md:items-end">
-        <div>
-          <p className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.3em] text-[#d9b77b]">
-            <Compass size={13} /> Your next favourite is here
-          </p>
+      <div className="mb-10">
+        <p className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.3em] text-[#d9b77b]">
+          <Compass size={13} /> {t("discoverEyebrow")}
+        </p>
 
-          <h1 className="font-display text-5xl leading-none sm:text-6xl">
-            Discover <span className="italic text-[#d9b77b]">cinema.</span>
-          </h1>
+        <h1 className="font-display text-5xl leading-none sm:text-6xl">
+          {t("discoverTitle")}{" "}
+          <span className="italic text-[#d9b77b]">{t("discoverAccent")}</span>
+        </h1>
 
-          <p className="cv-quiet-text mt-4 max-w-xl text-sm leading-6">
-            Explore live TMDB releases, timeless classics, and curated mood
-            collections.
-          </p>
-        </div>
-
-        {/* Discover search + suggestions + voice search */}
-        <SearchBox
-          value={search}
-          onChange={onSearchChange}
-          onSelectSuggestion={onSelectSuggestion}
-          history={searchHistory}
-          suggestions={movies}
-          onClearHistory={onClearHistory}
-          onVoiceSearch={onVoiceSearch}
-          voiceStatus={voiceStatus}
-          placeholder="Search any film title..."
-          ariaLabel="Search the movie catalog"
-          className="w-full md:max-w-[380px]"
-        />
+        <p className="cv-quiet-text mt-4 max-w-xl text-sm leading-6">
+          {t("discoverSubtitle")}
+        </p>
       </div>
 
       <div className="cv-hairline mb-8 border-y py-5">
         <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.22em] text-[#d9b77b]">
           <SlidersHorizontal size={13} />
-          Browse by genre
+          {t("browseByGenre")}
         </div>
 
         <div className="cv-no-scrollbar flex gap-2 overflow-x-auto pb-1">
-          {genresList.map((genre) => (
-            <button
-              type="button"
-              key={genre}
-              onClick={() => onGenreChange(genre)}
-              className={`shrink-0 rounded-full border px-4 py-2 text-xs transition ${
-                activeGenre === genre
-                  ? "border-[#d9b77b] bg-[#d9b77b] text-[#17130d]"
-                  : "cv-pill hover:border-[#d9b77b]/45"
-              }`}
-            >
-              {genre}
-            </button>
-          ))}
+          {genresList.map((genre) => {
+            const genreKey = String(genre.id);
+            const isSelected = String(activeGenre) === genreKey;
+            return (
+              <button
+                type="button"
+                key={genreKey}
+                onClick={() => onGenreChange(genreKey)}
+                className={`shrink-0 rounded-full border px-4 py-2 text-xs transition ${
+                  isSelected
+                    ? "border-[#d9b77b] bg-[#d9b77b] text-[#17130d]"
+                    : "cv-pill hover:border-[#d9b77b]/45"
+                }`}
+              >
+                {genre.id === "All" ? t("all") : genre.name}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
           <span className="cv-quiet-text mr-1 flex items-center text-xs">
-            Mood:
+            {t("moodLabel")}
           </span>
 
           {MOODS.map((mood) => (
@@ -1651,7 +1705,7 @@ function DiscoverPage({
                   : "cv-pill hover:border-[#d9b77b]/35"
               }`}
             >
-              {mood.name}
+              {t(mood.labelKey)}
             </button>
           ))}
 
@@ -1662,7 +1716,7 @@ function DiscoverPage({
               className="ml-auto flex items-center gap-1.5 px-2 text-xs text-[#d9b77b] hover:text-[#f0d6a3]"
             >
               <X size={12} />
-              Clear filters
+              {t("clearFilters")}
             </button>
           )}
         </div>
@@ -1673,12 +1727,12 @@ function DiscoverPage({
           <span className="font-semibold text-current">
             {totalResults > 0 ? totalResults.toLocaleString() : movies.length}
           </span>{" "}
-          {totalResults === 1 ? "film" : "films"} to explore
+          {totalResults === 1 ? t("filmToExplore") : t("filmsToExplore")}
         </p>
 
         <span className="cv-quiet-text hidden items-center gap-1.5 text-xs sm:flex">
           <Sparkles size={13} className="text-[#d9b77b]" />
-          Powered by live TMDB catalog
+          {t("poweredByTmdb")}
         </span>
       </div>
 
@@ -1697,7 +1751,7 @@ function DiscoverPage({
             className="cv-pill flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold hover:border-[#d9b77b]/50"
           >
             <RefreshCw size={13} />
-            Retry
+            {t("retry")}
           </button>
         </div>
       )}
@@ -1715,6 +1769,9 @@ function DiscoverPage({
                 onOpen={onOpenMovie}
                 isSaved={isMovieSaved(movie)}
                 onToggleSave={onToggleSave}
+                language={language}
+                genreNameById={genreNameById}
+                moreDetailsLabel={t("moreDetails")}
               />
             ))}
           </div>
@@ -1727,7 +1784,7 @@ function DiscoverPage({
                 onClick={onLoadMore}
                 className="cv-pill rounded-full border px-7 py-3 text-xs font-semibold transition hover:border-[#d9b77b] hover:text-[#d9b77b] disabled:opacity-50"
               >
-                {loadingMore ? "Loading more films..." : "Load more films"}
+                {loadingMore ? t("loadingMore") : t("loadMoreFilms")}
               </button>
             </div>
           )}
@@ -1738,11 +1795,10 @@ function DiscoverPage({
             <Film size={23} />
           </div>
 
-          <h2 className="font-display text-2xl">Nothing on this reel. Yet.</h2>
+          <h2 className="font-display text-2xl">{t("nothingHereTitle")}</h2>
 
           <p className="cv-quiet-text mt-2 max-w-sm text-sm leading-6">
-            Try a different title, genre, or mood. The perfect film may simply
-            be hiding.
+            {t("nothingHereBody")}
           </p>
 
           <button
@@ -1750,7 +1806,7 @@ function DiscoverPage({
             onClick={onClearFilters}
             className="cv-gold-button mt-5 rounded-full px-5 py-2.5 text-sm font-semibold"
           >
-            Reset discovery
+            {t("resetDiscovery")}
           </button>
         </div>
       )}
@@ -1762,7 +1818,7 @@ function DiscoverPage({
    FOOTER
 -------------------------------------------------- */
 
-function Footer({ onNavigate }) {
+function Footer({ onNavigate, t }) {
   return (
     <footer className="cv-hairline relative z-10 border-t px-5 py-8 sm:px-8 lg:px-12">
       <div className="mx-auto flex max-w-[1440px] flex-col justify-between gap-5 sm:flex-row sm:items-center">
@@ -1775,7 +1831,7 @@ function Footer({ onNavigate }) {
             </p>
 
             <p className="cv-quiet-text mt-1 text-[10px]">
-              For the love of the story.
+              {t("tagline")}
             </p>
           </div>
         </div>
@@ -1786,7 +1842,7 @@ function Footer({ onNavigate }) {
             onClick={() => onNavigate("home")}
             className="transition hover:text-current"
           >
-            Home
+            {t("home")}
           </button>
 
           <button
@@ -1794,7 +1850,7 @@ function Footer({ onNavigate }) {
             onClick={() => onNavigate("discover")}
             className="transition hover:text-current"
           >
-            Discover
+            {t("discover")}
           </button>
 
           <button
@@ -1802,10 +1858,10 @@ function Footer({ onNavigate }) {
             onClick={() => onNavigate("watchlist")}
             className="transition hover:text-current"
           >
-            Watchlist
+            {t("watchlist")}
           </button>
 
-          <span>Film data powered by TMDB</span>
+          <span>{t("tmdbCredit")}</span>
         </div>
       </div>
     </footer>
@@ -1819,6 +1875,7 @@ function Footer({ onNavigate }) {
 export default function App() {
   const location = useLocation();
   const routerNavigate = useNavigate();
+  const { language, setLanguage, t } = useLanguage();
 
   const page = useMemo(() => {
     const path = location.pathname.toLowerCase();
@@ -1917,11 +1974,28 @@ export default function App() {
 
   const genrePills = useMemo(() => {
     if (!genresMeta.length) return DEFAULT_GENRE_PILLS;
-    const names = genresMeta
-      .map((g) => g.name)
-      .filter((name) => name !== "TV Movie");
-    return ["All", ...Array.from(new Set(names))];
-  }, [genresMeta]);
+    const filtered = genresMeta.filter((g) => g.id !== 10770);
+    return [{ id: "All", name: t("all") }, ...filtered];
+  }, [genresMeta, t]);
+
+  const genreNameById = useMemo(() => {
+    const map = new Map();
+    for (const g of genrePills) {
+      if (g.id !== "All") map.set(Number(g.id), g.name);
+    }
+    return map;
+  }, [genrePills]);
+
+  const selectedGenreId = useMemo(() => {
+    if (!activeGenre || activeGenre === "All") return null;
+    if (/^\d+$/.test(String(activeGenre))) return Number(activeGenre);
+    return resolveGenreId(activeGenre, genresMeta);
+  }, [activeGenre, genresMeta]);
+
+  /* Sync document language attribute */
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
 
   /* Theme updates */
   useEffect(() => {
@@ -1977,11 +2051,14 @@ export default function App() {
     const controller = new AbortController();
 
     Promise.allSettled([
-      getTrendingMovies({ timeWindow: "day", page: 1 }, controller.signal),
-      getPopularMovies(1, controller.signal),
-      getTopRatedMovies(1, controller.signal),
-      getNowPlayingMovies(1, controller.signal),
-      getGenres(controller.signal),
+      getTrendingMovies(
+        { timeWindow: "day", page: 1, lang: language },
+        controller.signal,
+      ),
+      getPopularMovies(1, controller.signal, language),
+      getTopRatedMovies(1, controller.signal, language),
+      getNowPlayingMovies(1, controller.signal, language),
+      getGenres(controller.signal, language),
     ])
       .then(([trendRes, popRes, topRes, nowRes, genresRes]) => {
         if (controller.signal.aborted) return;
@@ -2030,7 +2107,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [homeReloadTick]);
+  }, [homeReloadTick, language]);
 
   /* Fetch personalized genre recommendations for authenticated users */
   useEffect(() => {
@@ -2046,7 +2123,12 @@ export default function App() {
 
     const controller = new AbortController();
     discoverMovies(
-      { genres: ids.join(","), sortBy: "vote_average.desc", page: 1 },
+      {
+        genres: ids.join(","),
+        sortBy: "vote_average.desc",
+        page: 1,
+        lang: language,
+      },
       controller.signal,
     )
       .then((data) => {
@@ -2059,7 +2141,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [currentUser?.favoriteGenres, genresMeta]);
+  }, [currentUser?.favoriteGenres, genresMeta, language]);
 
   /* Sync URL search params when on /discover */
   useEffect(() => {
@@ -2097,20 +2179,26 @@ export default function App() {
     async function loadInitialDiscover() {
       let data;
       if (debouncedSearch) {
-        data = await searchMovies(debouncedSearch, 1, controller.signal);
-        if (activeGenre !== "All") {
+        data = await searchMovies(
+          debouncedSearch,
+          1,
+          controller.signal,
+          language,
+        );
+        if (selectedGenreId) {
           data = {
             ...data,
-            results: data.results.filter((movie) =>
-              movie.genres.includes(activeGenre),
+            results: data.results.filter(
+              (movie) =>
+                movie.genreIds?.includes(selectedGenreId) ||
+                movie.genres.includes(genreNameById.get(selectedGenreId)),
             ),
           };
         }
-      } else if (activeGenre !== "All" || activeMood) {
+      } else if (selectedGenreId || activeMood) {
         const moodConfig = MOODS.find((m) => m.name === activeMood);
-        const genreId = resolveGenreId(activeGenre, genresMeta);
         const combinedGenres = [
-          genreId ? String(genreId) : "",
+          selectedGenreId ? String(selectedGenreId) : "",
           moodConfig?.genreIds || "",
         ]
           .filter(Boolean)
@@ -2121,11 +2209,12 @@ export default function App() {
             genres: combinedGenres || undefined,
             sortBy: moodConfig?.sortBy || "popularity.desc",
             page: 1,
+            lang: language,
           },
           controller.signal,
         );
       } else {
-        data = await getPopularMovies(1, controller.signal);
+        data = await getPopularMovies(1, controller.signal, language);
       }
 
       if (controller.signal.aborted || reqId !== discoverReqIdRef.current) {
@@ -2171,13 +2260,14 @@ export default function App() {
   }, [
     page,
     debouncedSearch,
-    activeGenre,
+    selectedGenreId,
     activeMood,
-    genresMeta,
+    genreNameById,
     discoverReloadTick,
     isVoiceNotFoundMatch,
     usingFallback,
     recordSearch,
+    language,
   ]);
 
   /* Load next Discover page */
@@ -2190,12 +2280,11 @@ export default function App() {
     try {
       let data;
       if (debouncedSearch) {
-        data = await searchMovies(debouncedSearch, nextPage);
-      } else if (activeGenre !== "All" || activeMood) {
+        data = await searchMovies(debouncedSearch, nextPage, undefined, language);
+      } else if (selectedGenreId || activeMood) {
         const moodConfig = MOODS.find((m) => m.name === activeMood);
-        const genreId = resolveGenreId(activeGenre, genresMeta);
         const combinedGenres = [
-          genreId ? String(genreId) : "",
+          selectedGenreId ? String(selectedGenreId) : "",
           moodConfig?.genreIds || "",
         ]
           .filter(Boolean)
@@ -2205,9 +2294,10 @@ export default function App() {
           genres: combinedGenres || undefined,
           sortBy: moodConfig?.sortBy || "popularity.desc",
           page: nextPage,
+          lang: language,
         });
       } else {
-        data = await getPopularMovies(nextPage);
+        data = await getPopularMovies(nextPage, undefined, language);
       }
 
       if (reqId !== discoverReqIdRef.current) return;
@@ -2225,10 +2315,10 @@ export default function App() {
     discoverPage,
     discoverTotalPages,
     debouncedSearch,
-    activeGenre,
+    selectedGenreId,
     activeMood,
-    genresMeta,
     notify,
+    language,
   ]);
 
   /* Redirect authenticated users away from /auth */
@@ -2258,7 +2348,7 @@ export default function App() {
     }
 
     const utterance = new SpeechSynthesisUtterance(message);
-    utterance.lang = "en-IN";
+    utterance.lang = SPEECH_LOCALE_MAP[language] || "en-IN";
     utterance.rate = 0.95;
     utterance.pitch = 1;
     utterance.volume = 1;
@@ -2293,7 +2383,12 @@ export default function App() {
     speakMessage("Searching", true);
 
     try {
-      const data = await searchMovies(finalQuery, 1, controller.signal);
+      const data = await searchMovies(
+        finalQuery,
+        1,
+        controller.signal,
+        language,
+      );
       if (controller.signal.aborted) return;
 
       const foundMovie = pickBestVoiceMatch(finalQuery, data.results || []);
@@ -2360,7 +2455,7 @@ export default function App() {
 
     try {
       const recognition = new SpeechRecognition();
-      recognition.lang = "en-IN";
+      recognition.lang = SPEECH_LOCALE_MAP[language] || "en-IN";
       recognition.continuous = false;
       recognition.interimResults = false;
       recognition.maxAlternatives = 3;
@@ -2594,11 +2689,18 @@ export default function App() {
             onAccount={handleAccount}
             search={search}
             onSearchChange={handleSearchChange}
+            onSelectSuggestion={handleSelectSuggestion}
+            searchHistory={searchHistory}
+            searchSuggestions={displayedDiscoverMovies}
+            onClearHistory={clearSearchHistory}
             onVoiceSearch={startVoiceSearch}
             voiceStatus={voiceStatus}
             isLoggedIn={isLoggedIn}
             watchlistCount={watchlistMovies.length}
             searchInputRef={desktopSearchInputRef}
+            language={language}
+            setLanguage={setLanguage}
+            t={t}
           />
 
           <Suspense
@@ -2645,11 +2747,7 @@ export default function App() {
               totalResults={displayedDiscoverTotal}
               genresList={genrePills}
               search={search}
-              onSearchChange={handleSearchChange}
-              onSelectSuggestion={handleSelectSuggestion}
-              searchHistory={searchHistory}
-              onClearHistory={clearSearchHistory}
-              activeGenre={activeGenre}
+              activeGenre={selectedGenreId ? String(selectedGenreId) : "All"}
               onGenreChange={(genre) => {
                 setActiveGenre(genre);
                 setVoiceStatus("idle");
@@ -2671,8 +2769,9 @@ export default function App() {
                 setDiscoverLoading(true);
                 setDiscoverReloadTick((t) => t + 1);
               }}
-              onVoiceSearch={startVoiceSearch}
-              voiceStatus={voiceStatus}
+              language={language}
+              genreNameById={genreNameById}
+              t={t}
             />
           )}
 
@@ -2683,6 +2782,7 @@ export default function App() {
                 loading={homeLoading}
                 onOpenMovie={setSelectedMovie}
                 onDiscover={openDiscover}
+                t={t}
               />
 
               <main className="mx-auto max-w-[1440px] px-5 pb-8 sm:px-8 lg:px-12">
@@ -2705,7 +2805,7 @@ export default function App() {
                       className="cv-pill flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-semibold hover:border-[#d9b77b]/50"
                     >
                       <RefreshCw size={12} />
-                      Retry live catalog
+                      {t("retryLiveCatalog")}
                     </button>
                   </div>
                 )}
@@ -2718,11 +2818,11 @@ export default function App() {
 
                     <div>
                       <p className="text-xs font-semibold">
-                        Not just what’s popular.
+                        {t("editorialHeadline")}
                       </p>
 
                       <p className="cv-quiet-text mt-1 text-[11px]">
-                        What’s worth your time.
+                        {t("editorialSubhead")}
                       </p>
                     </div>
                   </div>
@@ -2730,38 +2830,44 @@ export default function App() {
                   <div className="cv-quiet-text flex flex-wrap gap-x-5 gap-y-2 text-[10px] uppercase tracking-[.18em]">
                     <span className="flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#d9b77b]" />
-                      Live TMDB catalog
+                      {t("liveCatalog")}
                     </span>
 
                     <span className="flex items-center gap-2">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#d9b77b]" />
-                      Always a new perspective
+                      {t("newPerspective")}
                     </span>
                   </div>
                 </div>
 
                 <MovieRow
-                  title="Trending across cinema"
-                  eyebrow="Right now on TMDB"
+                  title={t("trending")}
+                  eyebrow={t("rightNowTmdb")}
                   movies={trendingMovies.slice(0, 6)}
                   loading={homeLoading}
                   onOpen={setSelectedMovie}
                   isMovieSaved={isMovieSaved}
                   onToggleSave={toggleSaveMovie}
                   onAction={openDiscover}
-                  action="Explore all films"
+                  action={t("exploreAllFilms")}
+                  language={language}
+                  genreNameById={genreNameById}
+                  moreDetailsLabel={t("moreDetails")}
                 />
 
                 <MovieRow
-                  title="Critically acclaimed"
-                  eyebrow="Top rated films"
+                  title={t("topRated")}
+                  eyebrow={t("topRatedEyebrow")}
                   movies={topRatedMovies.slice(0, 6)}
                   loading={homeLoading}
                   onOpen={setSelectedMovie}
                   isMovieSaved={isMovieSaved}
                   onToggleSave={toggleSaveMovie}
                   onAction={openDiscover}
-                  action="See more classics"
+                  action={t("seeMoreClassics")}
+                  language={language}
+                  genreNameById={genreNameById}
+                  moreDetailsLabel={t("moreDetails")}
                 />
 
                 <MoodExplorer
@@ -2773,38 +2879,44 @@ export default function App() {
                     setVoiceMessage("");
                     routerNavigate("/discover");
                   }}
+                  t={t}
                 />
 
                 <section id="discover-home" className="mb-16 scroll-mt-28">
                   <SectionHeading
-                    eyebrow="Find your next favourite"
-                    title="The Cineverse collection"
-                    subtitle="Filter by genre or dive straight into the full live collection."
-                    action="Open discovery"
+                    eyebrow={t("collectionEyebrow")}
+                    title={t("popular")}
+                    subtitle={t("collectionSubtitle")}
+                    action={t("openDiscovery")}
                     onAction={openDiscover}
                   />
 
                   <div className="cv-no-scrollbar mb-7 flex gap-2 overflow-x-auto pb-1">
-                    {genrePills.map((genre) => (
-                      <button
-                        key={genre}
-                        type="button"
-                        onClick={() => {
-                          setActiveGenre(genre);
-                          setActiveMood("");
-                          setVoiceStatus("idle");
-                          setVoiceMessage("");
-                          routerNavigate("/discover");
-                        }}
-                        className={`shrink-0 rounded-full border px-4 py-2 text-xs transition ${
-                          activeGenre === genre
-                            ? "border-[#d9b77b] bg-[#d9b77b] text-[#17130d]"
-                            : "cv-pill hover:border-[#d9b77b]/45"
-                        }`}
-                      >
-                        {genre}
-                      </button>
-                    ))}
+                    {genrePills.map((genre) => {
+                      const genreKey = String(genre.id);
+                      const isSelected =
+                        String(selectedGenreId || "All") === genreKey;
+                      return (
+                        <button
+                          key={genreKey}
+                          type="button"
+                          onClick={() => {
+                            setActiveGenre(genreKey);
+                            setActiveMood("");
+                            setVoiceStatus("idle");
+                            setVoiceMessage("");
+                            routerNavigate("/discover");
+                          }}
+                          className={`shrink-0 rounded-full border px-4 py-2 text-xs transition ${
+                            isSelected
+                              ? "border-[#d9b77b] bg-[#d9b77b] text-[#17130d]"
+                              : "cv-pill hover:border-[#d9b77b]/45"
+                          }`}
+                        >
+                          {genre.id === "All" ? t("all") : genre.name}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {homeLoading && !popularMovies.length ? (
@@ -2819,6 +2931,9 @@ export default function App() {
                           onOpen={setSelectedMovie}
                           isSaved={isMovieSaved(movie)}
                           onToggleSave={toggleSaveMovie}
+                          language={language}
+                          genreNameById={genreNameById}
+                          moreDetailsLabel={t("moreDetails")}
                         />
                       ))}
                     </div>
@@ -2826,40 +2941,49 @@ export default function App() {
                 </section>
 
                 <MovieRow
-                  title="Now in theatres"
-                  eyebrow="Now playing"
+                  title={t("nowPlaying")}
+                  eyebrow={t("nowPlayingEyebrow")}
                   movies={nowPlayingMovies.slice(0, 6)}
                   loading={homeLoading}
                   onOpen={setSelectedMovie}
                   isMovieSaved={isMovieSaved}
                   onToggleSave={toggleSaveMovie}
                   onAction={openDiscover}
-                  action="Browse releases"
+                  action={t("browseReleases")}
+                  language={language}
+                  genreNameById={genreNameById}
+                  moreDetailsLabel={t("moreDetails")}
                 />
 
                 {watchlistMovies.length > 0 && (
                   <MovieRow
-                    title="Saved for your next movie night"
-                    eyebrow="Your personal reel"
+                    title={t("savedNextNight")}
+                    eyebrow={t("personalReel")}
                     movies={watchlistMovies.slice(0, 6)}
                     onOpen={setSelectedMovie}
                     isMovieSaved={isMovieSaved}
                     onToggleSave={toggleSaveMovie}
                     onAction={() => navigate("watchlist")}
-                    action="Open watchlist"
+                    action={t("openWatchlist")}
+                    language={language}
+                    genreNameById={genreNameById}
+                    moreDetailsLabel={t("moreDetails")}
                   />
                 )}
 
                 {displayedPreferredMovies.length > 0 ? (
                   <MovieRow
-                    title="Picked for your taste"
-                    eyebrow={`Based on ${(currentUser?.favoriteGenres || []).slice(0, 2).join(" & ")}`}
+                    title={t("pickedForTaste")}
+                    eyebrow={(currentUser?.favoriteGenres || []).slice(0, 2).join(" & ")}
                     movies={displayedPreferredMovies}
                     onOpen={setSelectedMovie}
                     isMovieSaved={isMovieSaved}
                     onToggleSave={toggleSaveMovie}
                     onAction={() => navigate("profile")}
-                    action="Tune preferences"
+                    action={t("tunePreferences")}
+                    language={language}
+                    genreNameById={genreNameById}
+                    moreDetailsLabel={t("moreDetails")}
                   />
                 ) : (
                   <section className="mb-16">
@@ -2869,20 +2993,20 @@ export default function App() {
                       <div className="relative flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
                         <div>
                           <p className="mb-2 text-[10px] uppercase tracking-[.27em] text-[#d9b77b]">
-                            A little more your style
+                            {t("tasteEyebrow")}
                           </p>
 
                           <h2 className="font-display text-3xl sm:text-4xl">
-                            Your taste has a{" "}
+                            {t("tasteHeadlinePrefix")}{" "}
                             <span className="italic text-[#d9b77b]">
-                              story.
+                              {t("tasteHeadlineAccent")}
                             </span>
                           </h2>
 
                           <p className="cv-quiet-text mt-3 max-w-xl text-sm leading-6">
                             {isLoggedIn
-                              ? "Set your favourite genres in your profile to curate personalised picks here."
-                              : "Sign in and pick your favourite genres to sync your watchlist and personal picks."}
+                              ? t("tasteBodyAuth")
+                              : t("tasteBodyGuest")}
                           </p>
                         </div>
 
@@ -2893,7 +3017,7 @@ export default function App() {
                           }
                           className="group flex h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-[#d9b77b]/35 px-5 text-sm text-[#d9b77b] transition hover:bg-[#d9b77b]/10"
                         >
-                          Personalise
+                          {t("personalise")}
                           <ArrowRight
                             size={14}
                             className="transition-transform group-hover:translate-x-1"
@@ -2907,7 +3031,7 @@ export default function App() {
             </>
           )}
 
-          <Footer onNavigate={navigate} />
+          <Footer onNavigate={navigate} t={t} />
         </div>
 
         <Suspense fallback={null}>
@@ -2919,6 +3043,8 @@ export default function App() {
               isSaved={isMovieSaved(selectedMovie)}
               isAuthenticated={isLoggedIn}
               onToggleSave={toggleSaveMovie}
+              language={language}
+              t={t}
             />
           )}
         </Suspense>

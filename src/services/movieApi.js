@@ -146,15 +146,23 @@ export function normalizeMovie(movie) {
           }
         : null;
 
+  const genreIds = Array.isArray(movie.genre_ids)
+    ? movie.genre_ids.map(Number).filter(Number.isFinite)
+    : Array.isArray(movie.genres)
+      ? movie.genres.map((g) => Number(g?.id)).filter(Number.isFinite)
+      : [];
+
   return {
     id: `tmdb-${numericId}`,
     tmdbId: numericId,
     title: movie.title || movie.original_title || "Untitled",
+    originalLanguage: movie.original_language || movie.originalLanguage || "",
     tagline: movie.tagline || "",
     year: releaseYear,
     rating: formattedRating,
     runtime: runtimeValue,
     genres: rawGenres,
+    genreIds,
     director: movie.director || "Not listed",
     cast: Array.isArray(movie.cast) ? movie.cast : [],
 
@@ -198,37 +206,49 @@ function normalizePagedResponse(data) {
 }
 
 export async function getTrendingMovies(
-  { timeWindow = "day", page = 1 } = {},
+  { timeWindow = "day", page = 1, lang = "en" } = {},
   signal,
 ) {
   const data = await apiRequest(
-    `/movies/trending?timeWindow=${encodeURIComponent(timeWindow)}&page=${page}`,
+    `/movies/trending?timeWindow=${encodeURIComponent(timeWindow)}&page=${page}&lang=${encodeURIComponent(lang)}`,
     { signal },
   );
 
   return normalizePagedResponse(data);
 }
 
-export async function getPopularMovies(page = 1, signal) {
-  const data = await apiRequest(`/movies/popular?page=${page}`, { signal });
+export async function getPopularMovies(page = 1, signal, lang = "en") {
+  const data = await apiRequest(
+    `/movies/popular?page=${page}&lang=${encodeURIComponent(lang)}`,
+    { signal },
+  );
 
   return normalizePagedResponse(data);
 }
 
-export async function getTopRatedMovies(page = 1, signal) {
-  const data = await apiRequest(`/movies/top-rated?page=${page}`, { signal });
+export async function getTopRatedMovies(page = 1, signal, lang = "en") {
+  const data = await apiRequest(
+    `/movies/top-rated?page=${page}&lang=${encodeURIComponent(lang)}`,
+    { signal },
+  );
 
   return normalizePagedResponse(data);
 }
 
-export async function getNowPlayingMovies(page = 1, signal) {
-  const data = await apiRequest(`/movies/now-playing?page=${page}`, { signal });
+export async function getNowPlayingMovies(page = 1, signal, lang = "en") {
+  const data = await apiRequest(
+    `/movies/now-playing?page=${page}&lang=${encodeURIComponent(lang)}`,
+    { signal },
+  );
 
   return normalizePagedResponse(data);
 }
 
-export async function getGenres(signal) {
-  const data = await apiRequest("/movies/genres", { signal });
+export async function getGenres(signal, lang = "en") {
+  const data = await apiRequest(
+    `/movies/genres?lang=${encodeURIComponent(lang)}`,
+    { signal },
+  );
 
   return (data.genres || []).map((genre) => ({
     id: genre.id,
@@ -237,7 +257,13 @@ export async function getGenres(signal) {
 }
 
 export async function discoverMovies(
-  { genres, sortBy = "popularity.desc", page = 1, minVotes = 100 } = {},
+  {
+    genres,
+    sortBy = "popularity.desc",
+    page = 1,
+    minVotes = 100,
+    lang = "en",
+  } = {},
   signal,
 ) {
   const params = new URLSearchParams();
@@ -247,6 +273,7 @@ export async function discoverMovies(
 
   params.set("minVotes", String(minVotes));
   params.set("page", String(page));
+  params.set("lang", String(lang));
 
   const data = await apiRequest(`/movies/discover?${params.toString()}`, {
     signal,
@@ -255,24 +282,32 @@ export async function discoverMovies(
   return normalizePagedResponse(data);
 }
 
-export async function searchMovies(query, page = 1, signal) {
+export async function searchMovies(query, page = 1, signal, lang = "en") {
   const data = await apiRequest(
-    `/movies/search?q=${encodeURIComponent(query)}&page=${page}`,
+    `/movies/search?q=${encodeURIComponent(query)}&page=${page}&lang=${encodeURIComponent(lang)}`,
     { signal },
   );
 
   return normalizePagedResponse(data);
 }
 
-export async function getMovieDetails(tmdbId, signal) {
-  const data = await apiRequest(`/movies/${tmdbId}`, { signal });
+export async function getMovieDetails(tmdbId, signal, lang = "en") {
+  const data = await apiRequest(
+    `/movies/${tmdbId}?lang=${encodeURIComponent(lang)}`,
+    { signal },
+  );
 
   return normalizeMovie(data);
 }
 
-export async function getMovieRecommendations(tmdbId, page = 1, signal) {
+export async function getMovieRecommendations(
+  tmdbId,
+  page = 1,
+  signal,
+  lang = "en",
+) {
   const data = await apiRequest(
-    `/movies/${tmdbId}/recommendations?page=${page}`,
+    `/movies/${tmdbId}/recommendations?page=${page}&lang=${encodeURIComponent(lang)}`,
     { signal },
   );
 

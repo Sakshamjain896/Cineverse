@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -18,6 +19,7 @@ import TrailerPlayer from "./TrailerPlayer.jsx";
 
 function getFocusableElements(container) {
   if (!container) return [];
+
   return Array.from(
     container.querySelectorAll(
       'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -32,6 +34,8 @@ function MovieModalDialog({
   isSaved,
   isAuthenticated,
   onToggleSave,
+  language = "en",
+  t,
 }) {
   const [details, setDetails] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
@@ -39,20 +43,40 @@ function MovieModalDialog({
   const [detailError, setDetailError] = useState("");
   const [backdropFailed, setBackdropFailed] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  const [showHeroTrailer, setShowHeroTrailer] = useState(false);
 
   const dialogRef = useRef(null);
   const closeButtonRef = useRef(null);
   const lastFocusedRef = useRef(null);
 
-  const activeMovie =
-    details && details.tmdbId === movie.tmdbId ? { ...movie, ...details } : movie;
+  const translate = (key, fallback) => {
+    return typeof t === "function" ? t(key) : fallback;
+  };
 
+  const activeMovie =
+    details && details.tmdbId === movie.tmdbId
+      ? { ...movie, ...details }
+      : movie;
+
+  const trailerSource =
+    activeMovie.trailer ||
+    (activeMovie.trailerKey
+      ? {
+          key: activeMovie.trailerKey,
+          site: "YouTube",
+          type: "Trailer",
+          official: false,
+          name: "Movie Trailer",
+        }
+      : null);
+
+  // Fetch movie details and recommendations.
   useEffect(() => {
     const controller = new AbortController();
 
     Promise.allSettled([
-      getMovieDetails(movie.tmdbId, controller.signal),
-      getMovieRecommendations(movie.tmdbId, 1, controller.signal),
+      getMovieDetails(movie.tmdbId, controller.signal, language),
+      getMovieRecommendations(movie.tmdbId, 1, controller.signal, language),
     ])
       .then(([detailRes, recRes]) => {
         if (controller.signal.aborted) return;
@@ -63,12 +87,15 @@ function MovieModalDialog({
         } else {
           setDetails(null);
           setDetailError(
-            detailRes.reason?.message || "Could not load full movie details.",
+            detailRes.reason?.message ||
+              "Could not load full movie details.",
           );
         }
 
         if (recRes.status === "fulfilled") {
-          setRecommendations((recRes.value?.results || []).slice(0, 6));
+          setRecommendations(
+            (recRes.value?.results || []).slice(0, 6),
+          );
         } else {
           setRecommendations([]);
         }
@@ -80,11 +107,21 @@ function MovieModalDialog({
       });
 
     return () => controller.abort();
-  }, [movie.tmdbId, reloadTick]);
+  }, [movie.tmdbId, reloadTick, language]);
+
+  // Start the hero trailer exactly five seconds after opening the modal.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowHeroTrailer(true);
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [movie.tmdbId]);
 
   // Focus management, Escape close, and Tab trapping.
   useEffect(() => {
     lastFocusedRef.current = document.activeElement;
+
     const focusTimer = window.setTimeout(() => {
       closeButtonRef.current?.focus();
     }, 20);
@@ -98,14 +135,19 @@ function MovieModalDialog({
 
       if (event.key === "Tab" && dialogRef.current) {
         const focusables = getFocusableElements(dialogRef.current);
+
         if (!focusables.length) return;
+
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
 
         if (event.shiftKey && document.activeElement === first) {
           event.preventDefault();
           last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
+        } else if (
+          !event.shiftKey &&
+          document.activeElement === last
+        ) {
           event.preventDefault();
           first.focus();
         }
@@ -113,9 +155,11 @@ function MovieModalDialog({
     };
 
     window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       window.clearTimeout(focusTimer);
       window.removeEventListener("keydown", handleKeyDown);
+
       if (
         lastFocusedRef.current &&
         typeof lastFocusedRef.current.focus === "function"
@@ -128,6 +172,8 @@ function MovieModalDialog({
   const heroImage = !backdropFailed
     ? activeMovie.backdrop || activeMovie.poster || ""
     : activeMovie.poster || "";
+
+  const shouldShowTrailer = showHeroTrailer && Boolean(trailerSource);
 
   return (
     <motion.div
@@ -151,35 +197,72 @@ function MovieModalDialog({
         aria-label={`${activeMovie.title} details`}
         className="cv-theme-panel cv-panel-surface relative my-auto w-full max-w-4xl overflow-hidden rounded-[24px] border bg-[#111214] shadow-2xl"
       >
-        <div className="relative h-[240px] bg-[#141518] sm:h-[330px]">
+        {/* HERO */}
+        <div className="relative isolate h-[240px] overflow-hidden bg-[#141518] sm:h-[330px]">
           {heroImage ? (
-            <img
-              src={heroImage}
-              alt=""
-              onError={() => setBackdropFailed(true)}
-              className="h-full w-full object-cover"
-            />
+            <>
+              <img
+                src={heroImage}
+                alt=""
+                aria-hidden="true"
+                onError={() => setBackdropFailed(true)}
+                className="absolute inset-0 z-0 h-full w-full scale-110 object-cover opacity-40 blur-2xl"
+              />
+
+              <img
+                src={heroImage}
+                alt=""
+                onError={() => setBackdropFailed(true)}
+                className="absolute inset-0 z-[1] h-full w-full object-contain object-center"
+              />
+            </>
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#2a2520] via-[#151517] to-[#0e0f11]">
+            <div className="absolute inset-0 z-[1] flex items-center justify-center bg-gradient-to-br from-[#2a2520] via-[#151517] to-[#0e0f11]">
               <Film size={44} className="text-[#d9b77b]/50" />
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-[#111214] via-black/30 to-black/15" />
+          {/* TRAILER OVERLAY */}
+          <AnimatePresence>
+            {shouldShowTrailer && (
+              <motion.div
+                key={`hero-trailer-${activeMovie.tmdbId}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.1, ease: "easeInOut" }}
+                className="absolute inset-0 z-[2] overflow-hidden bg-black"
+              >
+                <TrailerPlayer
+                  trailer={trailerSource}
+                  title={`${activeMovie.title} trailer`}
+                  autoplay={true}
+                  muted={true}
+                  controls={true}
+                  className="h-full w-full rounded-none border-0"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
+          {/* HERO GRADIENT */}
+          <div className="absolute inset-0 z-[3] bg-gradient-to-t from-[#111214] via-black/30 to-black/15 pointer-events-none" />
+
+          {/* CLOSE BUTTON */}
           <button
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            aria-label="Close movie details"
-            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full border border-white/25 bg-black/50 text-white backdrop-blur transition hover:bg-black/75"
+            aria-label={translate("close", "Close movie details")}
+            className="absolute right-4 top-4 z-[5] grid h-10 w-10 place-items-center rounded-full border border-white/25 bg-black/50 text-white backdrop-blur transition hover:bg-black/75"
           >
             <X size={18} />
           </button>
 
-          <div className="absolute bottom-5 left-5 right-5 sm:bottom-7 sm:left-8 sm:right-8">
+          {/* HERO TITLE */}
+          <div className="absolute bottom-5 left-5 right-5 z-[4] sm:bottom-7 sm:left-8 sm:right-8 pointer-events-none">
             <p className="mb-2 text-[10px] uppercase tracking-[.25em] text-[#f0d6a3]">
-              Cineverse selection
+              {translate("cineverseSelection", "Cineverse selection")}
             </p>
 
             <h2 className="font-display text-3xl text-white sm:text-5xl">
@@ -194,8 +277,10 @@ function MovieModalDialog({
           </div>
         </div>
 
+        {/* MOVIE DETAILS */}
         <div className="grid gap-7 p-5 sm:grid-cols-[1fr_240px] sm:p-8">
           <div>
+            {/* METADATA */}
             <div className="cv-quiet-text mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
               <span className="flex items-center gap-1.5 font-semibold text-[#d9b77b]">
                 <Star size={13} className="fill-current" />
@@ -210,65 +295,47 @@ function MovieModalDialog({
               <span className="flex items-center gap-1.5">
                 <Clock3 size={13} />
                 {loading && activeMovie.runtime === "Not listed"
-                  ? "Loading..."
+                  ? translate("loading", "Loading...")
                   : activeMovie.runtime}
               </span>
             </div>
 
+            {/* OVERVIEW */}
             <p className="max-w-2xl text-sm leading-7 opacity-90">
               {activeMovie.synopsis}
             </p>
-            <div className="mt-6">
-  <div className="mb-3 flex items-center justify-between">
-    <p className="text-[10px] font-semibold uppercase tracking-[.24em] text-[#d9b77b]">
-      Official Trailer
-    </p>
 
-    {activeMovie.trailer?.official && (
-      <span className="text-[10px] text-white/40">
-        Verified official video
-      </span>
-    )}
-  </div>
+            {/* TRAILER STATUS */}
+            {!trailerSource && (
+              <p className="cv-quiet-text mt-5 text-xs">
+                {translate(
+                  "noTrailer",
+                  "No trailer available for this movie.",
+                )}
+              </p>
+            )}
 
-  <TrailerPlayer
-    trailer={
-      activeMovie.trailer ||
-      (activeMovie.trailerKey
-        ? {
-            key: activeMovie.trailerKey,
-            site: "YouTube",
-            type: "Trailer",
-            official: false,
-            name: "Movie Trailer",
-          }
-        : null)
-    }
-    title={activeMovie.title}
-    autoplay={false}
-    muted={false}
-    controls={true}
-  />
-</div>
-
+            {/* ERROR AND RETRY */}
             {detailError && (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2.5 text-xs text-amber-300">
                 <span>{detailError}</span>
+
                 <button
                   type="button"
                   onClick={() => {
                     setLoading(true);
                     setDetailError("");
-                    setReloadTick((t) => t + 1);
+                    setReloadTick((value) => value + 1);
                   }}
                   className="flex items-center gap-1 font-semibold underline"
                 >
                   <RefreshCw size={12} />
-                  Retry
+                  {translate("retry", "Retry")}
                 </button>
               </div>
             )}
 
+            {/* GENRES */}
             <div className="mt-5 flex flex-wrap gap-2">
               {(activeMovie.genres || []).map((genre) => (
                 <span
@@ -280,11 +347,13 @@ function MovieModalDialog({
               ))}
             </div>
 
+            {/* CAST */}
             {activeMovie.cast?.length > 0 && (
               <div className="mt-6">
                 <p className="cv-quiet-text mb-2.5 text-[10px] font-semibold uppercase tracking-[.22em]">
-                  Cast
+                  {translate("cast", "Cast")}
                 </p>
+
                 <div className="flex flex-wrap gap-2">
                   {activeMovie.cast.map((member) => (
                     <span
@@ -299,14 +368,15 @@ function MovieModalDialog({
             )}
           </div>
 
+          {/* SIDEBAR */}
           <aside className="cv-panel-surface cv-hairline rounded-2xl border p-5">
             <p className="cv-quiet-text text-[10px] uppercase tracking-[.2em]">
-              Directed by
+              {translate("directedBy", "Directed by")}
             </p>
 
             <p className="mt-2 text-sm font-semibold">
               {loading && activeMovie.director === "Not listed"
-                ? "Loading..."
+                ? translate("loading", "Loading...")
                 : activeMovie.director || "Not listed"}
             </p>
 
@@ -324,28 +394,29 @@ function MovieModalDialog({
               {isSaved ? (
                 <>
                   <Check size={14} />
-                  In your watchlist
+                  {translate("inYourWatchlist", "In your watchlist")}
                 </>
               ) : (
                 <>
                   <Bookmark size={14} />
-                  Add to watchlist
+                  {translate("addToWatchlist", "Add to watchlist")}
                 </>
               )}
             </button>
 
             <p className="cv-quiet-text mt-3 text-[10px] leading-5">
               {isAuthenticated
-                ? "Synced directly to your Cineverse account."
-                : "Saved in this browser. Sign in anytime to sync across devices."}
+                ? translate("syncedAccount", "Synced directly to your Cineverse account.")
+                : translate("savedLocal", "Saved in this browser. Sign in anytime to sync across devices.")}
             </p>
           </aside>
         </div>
 
+        {/* RECOMMENDATIONS */}
         {(loading || recommendations.length > 0) && (
           <div className="cv-hairline border-t px-5 pb-6 pt-5 sm:px-8 sm:pb-8">
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-[.24em] text-[#d9b77b]">
-              Recommended next
+              {translate("recommendedNext", "Recommended next")}
             </p>
 
             {loading && recommendations.length === 0 ? (
@@ -380,6 +451,7 @@ function MovieModalDialog({
                         </div>
                       )}
                     </div>
+
                     <p className="mt-1.5 truncate text-[11px] font-medium group-hover:text-[#d9b77b]">
                       {rec.title}
                     </p>
@@ -394,11 +466,16 @@ function MovieModalDialog({
   );
 }
 
-export default function MovieModal({ movie, ...props }) {
+export default function MovieModal({ movie, language = "en", ...props }) {
   return (
     <AnimatePresence>
       {movie && (
-        <MovieModalDialog key={movie.tmdbId} movie={movie} {...props} />
+        <MovieModalDialog
+          key={`${movie.tmdbId}-${language}`}
+          movie={movie}
+          language={language}
+          {...props}
+        />
       )}
     </AnimatePresence>
   );
